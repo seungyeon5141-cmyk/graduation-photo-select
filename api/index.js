@@ -465,7 +465,7 @@ async function dynamicRoute(request, path) {
     } else {
       await staff(request);
     }
-    const size = Math.min(Math.max(Number(new URL(request.url).searchParams.get('s')) || 600, 200), 2000);
+    const size = Math.min(Math.max(Number(new URL(request.url).searchParams.get('s')) || 600, 200), 3200);
     const res = await fetchThumbnail(photo.id, size);
     if (!res.ok) return fail('미리보기를 불러오지 못했어요.', 502);
     return new Response(res.body, {

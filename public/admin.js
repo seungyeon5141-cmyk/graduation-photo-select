@@ -102,7 +102,8 @@ function render() {
 
 function thumb(sel, alt, empty) {
   if (!sel) return empty;
-  return sel.missing ? '드라이브에서 사진을 찾을 수 없어요' : `<img loading="lazy" src="/api/thumb/${sel.fileId}?s=500" alt="${esc(alt)}">`;
+  return sel.missing ? '드라이브에서 사진을 찾을 수 없어요'
+    : `<img loading="lazy" src="/api/thumb/${sel.fileId}?s=500" alt="${esc(alt)}" data-zoom="${sel.fileId}" data-label="${esc(alt)}">`;
 }
 
 function classCard(c) {
@@ -243,7 +244,7 @@ function renderPhotos() {
     <div class="grid">${f.photos.map((ph) => {
       const picks = pickedBy.get(ph.id) || [];
       return `<div class="photo ${picks.length ? 'picked' : ''}">
-        <div class="img" data-choose="${ph.id}"><img loading="lazy" src="/api/thumb/${ph.id}?s=600" alt="${esc(ph.name)}"></div>
+        <div class="img" data-view="${ph.id}"><img loading="lazy" src="/api/thumb/${ph.id}?s=600" alt="${esc(ph.name)}"></div>
         <div class="meta">
           <span class="name">${esc(ph.name)}${picks.map((k) => `<br><span class="tag ok">${k.classNo}반 단체사진 · ${esc(k.teacherName)}</span>`).join('')}</span>
           <button class="small primary" data-choose="${ph.id}">단체사진 셀렉</button>
@@ -256,13 +257,40 @@ function renderPhotos() {
 $('folderFilter').onchange = renderPhotos;
 $('refresh').onclick = () => loadPhotos(true);
 
-$('pickList').addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-choose]');
+// Selected photos on the status cards open full screen, browsable one after another.
+$('classes').addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-zoom]');
   if (!t) return;
-  state.picking = t.dataset.choose;
+  const all = [...$('classes').querySelectorAll('[data-zoom]')].map((el) => ({ id: el.dataset.zoom, label: el.dataset.label }));
+  PhotoZoom.open({ photos: all, index: all.findIndex((p) => p.id === t.dataset.zoom) });
+});
+
+function chooseClass(id) {
+  state.picking = id;
   $('classDialogImg').src = `/api/thumb/${state.picking}?s=1200`;
   $('classDialog').returnValue = '';
   $('classDialog').showModal();
+}
+
+$('pickList').addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-choose],[data-view]');
+  if (!t) return;
+  if (t.dataset.choose) return chooseClass(t.dataset.choose);
+  const filter = $('folderFilter').value;
+  const photos = state.photos.folders.filter((f) => filter === '' || String(f.classNo) === filter)
+    .flatMap((f) => f.photos.map((ph) => ({ id: ph.id, label: `${f.label} · ${ph.name}` })));
+  PhotoZoom.open({
+    photos,
+    index: photos.findIndex((p) => p.id === t.dataset.view),
+    actions: [{
+      primary: true,
+      label: (p) => {
+        const picks = state.photos.picks.filter((k) => k.fileId === p.id);
+        return picks.length ? `✅ ${picks.map((k) => k.classNo + '반').join(', ')} 단체사진 · 다시 고르기` : '이 사진을 단체사진으로 셀렉';
+      },
+      onClick: (p) => chooseClass(p.id),
+    }],
+  });
 });
 
 $('classDialog').addEventListener('close', async () => {
@@ -274,6 +302,7 @@ $('classDialog').addEventListener('close', async () => {
   try {
     await api('/api/staff/class-photo', { method: 'POST', body: JSON.stringify({ fileId: state.picking, classNo }) });
     await loadPhotos();
+    PhotoZoom.refresh();
     load();
   } catch (e) { alert(e.message); }
 });

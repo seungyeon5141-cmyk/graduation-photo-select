@@ -1,6 +1,6 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
-const state = { data: null, viewing: null };
+const state = { data: null };
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -98,13 +98,23 @@ $('grid').addEventListener('click', (ev) => {
   if (!t) return;
   if (t.dataset.pick) return pick(t.dataset.pick);
   if ('unpick' in t.dataset) return unpick();
-  state.viewing = t.dataset.view;
-  $('viewerImg').src = `/api/thumb/${state.viewing}?s=1600`;
-  $('viewerPick').disabled = state.data.locked;
-  $('viewer').showModal();
+  openZoom(t.dataset.view);
 });
-$('viewerClose').onclick = () => $('viewer').close();
-$('viewerPick').onclick = () => { $('viewer').close(); pick(state.viewing); };
+
+function openZoom(id) {
+  const d = state.data;
+  const photos = d.photos.map((p, i) => ({ id: p.id, label: `${i + 1}. ${p.name}` }));
+  PhotoZoom.open({
+    photos,
+    index: Math.max(0, photos.findIndex((p) => p.id === id)),
+    actions: [{
+      primary: true,
+      label: (p) => (state.data.selection && state.data.selection.fileId === p.id ? '✅ 우리 모둠이 셀렉한 사진' : '이 사진으로 셀렉'),
+      disabled: (p) => state.data.locked || (state.data.selection && state.data.selection.fileId === p.id),
+      onClick: async (p) => { await pick(p.id); PhotoZoom.refresh(); },
+    }],
+  });
+}
 
 $('login').addEventListener('submit', async (ev) => {
   ev.preventDefault();

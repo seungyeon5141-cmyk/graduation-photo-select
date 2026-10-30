@@ -47,7 +47,7 @@ function render() {
   const d = state.data;
   $('who').textContent = `${d.classNo}반 ${d.groupNo}조`;
   const picked = d.selection && d.selection.fileId;
-  $('status').textContent = picked ? `✅ 셀렉 완료 — '${d.deliveryName}'로 선생님께 전달돼요` : '아직 셀렉하지 않았어요';
+  $('status').textContent = picked ? `✅ 셀렉 완료 — '${d.deliveryName}' 이름을 붙여 선생님께 전달돼요` : '아직 셀렉하지 않았어요';
   $('statusHint').textContent = d.locked
     ? '🔒 선생님이 셀렉을 마감했어요. 더 이상 바꿀 수 없어요.'
     : '모둠마다 딱 한 장만 고를 수 있어요. 다른 사진을 누르면 셀렉이 그 사진으로 바뀌어요.';

@@ -14,7 +14,20 @@ import { getGroup, getSetting, getTeacher, hasDatabase, log, query, setSetting }
 import { classPhotoName, deliveryName, driveConfigured, fetchOriginal, fetchThumbnail, loadPhotos } from '../lib/drive.js';
 
 const CLASS_COUNT = () => Number(process.env.CLASS_COUNT) || 5;
-const GROUP_COUNT = () => Number(process.env.GROUP_COUNT) || 8;
+const MAX_GROUPS = 8;
+
+// Each class's homeroom teacher decides how many groups (조) the class has, 1–8.
+// Until then students of that class cannot log in.
+async function groupCounts() {
+  const rows = await query("SELECT key, value FROM photo_settings WHERE key LIKE 'groups:%'");
+  const out = {};
+  for (let c = 1; c <= CLASS_COUNT(); c++) out[c] = null;
+  for (const r of rows) {
+    const c = Number(r.key.slice(7));
+    if (c in out) out[c] = Number(r.value) || null;
+  }
+  return out;
+}
 
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {
   status,
@@ -119,7 +132,7 @@ const routes = {
     return json(out);
   },
 
-  'GET /api/config': async () => json({ classCount: CLASS_COUNT(), groupCount: GROUP_COUNT() }),
+  'GET /api/config': async () => json({ classCount: CLASS_COUNT(), maxGroups: MAX_GROUPS, groupCounts: await groupCounts() }),
 
   'GET /api/me': async (request) => {
     const s = readSession(request);
@@ -142,9 +155,12 @@ const routes = {
   'POST /api/login': async (request) => {
     const b = await body(request);
     const classNo = intIn(b.classNo, CLASS_COUNT());
-    const groupNo = intIn(b.groupNo, GROUP_COUNT());
     const password = String(b.password || '');
-    if (!classNo || !groupNo) return fail('반과 조를 다시 확인해 주세요.');
+    if (!classNo) return fail('반을 다시 확인해 주세요.');
+    const count = (await groupCounts())[classNo];
+    if (!count) return fail('선생님이 아직 우리 반 조 수를 정하지 않았어요. 선생님께 말씀드려 주세요.', 409);
+    const groupNo = intIn(b.groupNo, count);
+    if (!groupNo) return fail(`우리 반은 1조부터 ${count}조까지 있어요. 조를 다시 확인해 주세요.`);
     if (password.length < 4 || password.length > 40) return fail('비밀번호는 4자 이상 40자 이하로 입력해 주세요.');
     const key = `s:${classNo}:${groupNo}`;
     if (tooManyAttempts(key)) return fail('비밀번호를 여러 번 틀렸어요. 5분 뒤에 다시 해 주세요.', 429);
@@ -317,12 +333,13 @@ const routes = {
   // Teacher: own class only. Final admin: every class + teachers + history.
   'GET /api/staff/overview': async (request) => {
     const who = await staff(request);
-    const [{ classes, byId }, groups, selections, picks, locked] = await Promise.all([
+    const [{ classes, byId }, groups, selections, picks, locked, counts] = await Promise.all([
       loadPhotos(),
       query('SELECT class_no, group_no FROM photo_groups'),
       query('SELECT class_no, group_no, file_id, file_name, selected_at FROM photo_selections ORDER BY class_no, group_no'),
       query('SELECT class_no, file_id, file_name, teacher_id, teacher_name, selected_at FROM photo_class_picks'),
       isLocked(),
+      groupCounts(),
     ]);
     const registered = new Set(groups.map((g) => `${g.class_no}-${g.group_no}`));
     const picked = new Map(selections.map((r) => [`${r.class_no}-${r.group_no}`, r]));
@@ -331,12 +348,16 @@ const routes = {
     for (let c = 1; c <= CLASS_COUNT(); c++) {
       if (who.role === 'teacher' && c !== who.classNo) continue;
       const rows = [];
-      const maxGroup = Math.max(GROUP_COUNT(), ...groups.filter((g) => g.class_no === c).map((g) => g.group_no));
+      // Groups beyond the chosen count still show if they already picked a photo, so nothing is lost.
+      const count = counts[c] || 0;
+      const maxGroup = Math.max(count, ...selections.filter((r) => r.class_no === c).map((r) => r.group_no));
       for (let g = 1; g <= maxGroup; g++) {
         const sel = picked.get(`${c}-${g}`);
+        if (g > count && !sel) continue;
         const photo = sel ? byId.get(sel.file_id) : null;
         rows.push({
           groupNo: g,
+          extra: g > count,
           registered: registered.has(`${c}-${g}`),
           selection: sel ? {
             fileId: sel.file_id,
@@ -353,6 +374,7 @@ const routes = {
       out.push({
         classNo: c,
         photoCount: (classes.get(c) || []).length,
+        groupCount: counts[c],
         groups: rows,
         classPhoto: cp ? {
           fileId: cp.file_id,
@@ -365,7 +387,7 @@ const routes = {
         } : null,
       });
     }
-    const result = { role: who.role, name: who.name, classNo: who.classNo || null, locked, classCount: CLASS_COUNT(), classes: out };
+    const result = { role: who.role, name: who.name, classNo: who.classNo || null, locked, classCount: CLASS_COUNT(), maxGroups: MAX_GROUPS, classes: out };
     if (who.role === 'admin') {
       result.teachers = (await query('SELECT id, name, class_no, created_at FROM photo_teachers ORDER BY class_no, name'))
         .map((t) => ({ id: t.id, name: t.name, classNo: t.class_no, createdAt: t.created_at }));
@@ -373,6 +395,19 @@ const routes = {
         .map((r) => ({ at: r.at, actor: r.actor, action: r.action, classNo: r.class_no, groupNo: r.group_no, fileName: r.file_name }));
     }
     return json(result);
+  },
+
+  'POST /api/staff/group-count': async (request) => {
+    const who = await staff(request);
+    const b = await body(request);
+    const classNo = intIn(b.classNo, CLASS_COUNT());
+    const count = intIn(b.count, MAX_GROUPS);
+    if (!classNo) return fail('반을 확인해 주세요.');
+    if (!count) return fail(`조 수는 1부터 ${MAX_GROUPS}까지 고를 수 있어요.`);
+    ownClass(who, classNo);
+    await setSetting(`groups:${classNo}`, count);
+    await log(teacherActor(who), `조 수 설정: ${count}개 조`, { classNo });
+    return json({ ok: true, classNo, count });
   },
 
   'POST /api/admin/lock': async (request) => {

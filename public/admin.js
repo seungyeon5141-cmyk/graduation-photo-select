@@ -88,11 +88,28 @@ function render() {
   let total = 0;
   let done = 0;
   $('classes').innerHTML = d.classes.map((c) => {
-    const picked = c.groups.filter((g) => g.selection).length;
-    total += c.groups.length;
+    const inRange = c.groups.filter((g) => !g.extra);
+    const picked = inRange.filter((g) => g.selection).length;
+    total += inRange.length;
     done += picked;
+    const counter = `<label class="group-count">조 수
+        <select data-groups-for="${c.classNo}" aria-label="${c.classNo}반 조 수">
+          ${c.groupCount ? '' : '<option value="">선택</option>'}
+          ${Array.from({ length: d.maxGroups }, (_, i) => `<option value="${i + 1}" ${c.groupCount === i + 1 ? 'selected' : ''}>${i + 1}개 조</option>`).join('')}
+        </select></label>`;
+    const setup = c.groupCount ? '' : `<div class="setup" role="note">
+        <strong>${c.classNo}반은 몇 개 조인가요?</strong>
+        <span>조 수를 정해야 ${c.classNo}반 학생들이 로그인할 수 있어요. 정한 수만큼만 학생 화면의 조 선택지에 나와요.</span>
+        <span class="setup-row">
+          <select id="setup-${c.classNo}" aria-label="${c.classNo}반 조 수">
+            ${Array.from({ length: d.maxGroups }, (_, i) => `<option value="${i + 1}" ${i === 5 ? 'selected' : ''}>${i + 1}개 조 (1~${i + 1}조)</option>`).join('')}
+          </select>
+          <button class="primary" type="button" data-setup="${c.classNo}">조 수 정하기</button>
+        </span>
+      </div>`;
     return `<section class="class">
-      <h2>${c.classNo}반 <small>사진 ${c.photoCount}장 · 모둠 셀렉 ${picked}/${c.groups.length}조 · 단체사진 ${c.classPhoto ? '완료' : '미선택'}</small></h2>
+      <h2>${c.classNo}반 <small>사진 ${c.photoCount}장 · 모둠 셀렉 ${c.groupCount ? `${picked}/${inRange.length}조` : '조 수 미설정'} · 단체사진 ${c.classPhoto ? '완료' : '미선택'}</small>${counter}</h2>
+      ${setup}
       <div class="groups">${classCard(c)}${c.groups.map((g) => groupCard(c.classNo, g)).join('')}</div>
     </section>`;
   }).join('');
@@ -131,7 +148,7 @@ function groupCard(classNo, g) {
   return `<div class="group">
     <div class="thumb">${thumb(s, `${classNo}반 ${g.groupNo}조 셀렉 사진`, '아직 셀렉 안 함')}</div>
     <div class="info">
-      <div class="file">${classNo}반 ${g.groupNo}조 ${s ? '<span class="tag ok">셀렉 완료</span>' : '<span class="tag">대기</span>'}</div>
+      <div class="file">${classNo}반 ${g.groupNo}조 ${s ? '<span class="tag ok">셀렉 완료</span>' : '<span class="tag">대기</span>'}${g.extra ? ' <span class="tag warn">조 수 밖</span>' : ''}</div>
       ${s
         ? `<div>저장 파일명: <b>${esc(s.deliveryName)}</b></div>
            <div class="orig">원본: ${esc(s.originalName)} · ${when(s.selectedAt)}</div>`
@@ -166,6 +183,25 @@ $('classes').addEventListener('click', async (ev) => {
     }
     load();
   } catch (e) { alert(e.message); }
+});
+
+async function setGroupCount(classNo, count) {
+  const c = state.data.classes.find((x) => x.classNo === classNo);
+  const lost = c.groups.filter((g) => g.groupNo > count && g.selection).map((g) => `${g.groupNo}조`);
+  if (lost.length && !confirm(`${lost.join(', ')}는 이미 사진을 골랐어요. 조 수를 ${count}개로 줄여도 고른 사진은 남고 ‘조 수 밖’으로 표시돼요. 계속할까요?`)) return load();
+  try {
+    await api('/api/staff/group-count', { method: 'POST', body: JSON.stringify({ classNo, count }) });
+  } catch (e) { alert(e.message); }
+  load();
+}
+
+$('classes').addEventListener('change', (ev) => {
+  const sel = ev.target.closest('[data-groups-for]');
+  if (sel && sel.value) setGroupCount(Number(sel.dataset.groupsFor), Number(sel.value));
+});
+$('classes').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-setup]');
+  if (b) setGroupCount(Number(b.dataset.setup), Number($(`setup-${b.dataset.setup}`).value));
 });
 
 $('lock').onclick = async () => {

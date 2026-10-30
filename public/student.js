@@ -134,10 +134,33 @@ $('login').addEventListener('submit', async (ev) => {
 
 $('logout').onclick = async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); };
 
+// The group list follows the chosen class: only as many groups as that class's teacher set.
+function groupOptions(cfg) {
+  const count = cfg.groupCounts[$('classNo').value];
+  const sel = $('groupNo');
+  if (!$('classNo').value) {
+    sel.innerHTML = '<option value="">반을 먼저 고르세요</option>';
+  } else if (!count) {
+    sel.innerHTML = '<option value="">아직 준비 중</option>';
+  } else {
+    options(sel, count, '조');
+  }
+  sel.disabled = !count;
+  $('groupHint').textContent = $('classNo').value && !count
+    ? `${$('classNo').value}반은 선생님이 아직 조 수를 정하지 않았어요. 선생님께 말씀드려 주세요.`
+    : '';
+}
+
 (async function init() {
-  const cfg = await api('/api/config').catch(() => ({ classCount: 5, groupCount: 8 }));
+  const cfg = await api('/api/config').catch(() => ({ classCount: 5, groupCounts: {} }));
   options($('classNo'), cfg.classCount, '반');
-  options($('groupNo'), cfg.groupCount, '조');
+  groupOptions(cfg);
+  // Re-read the counts on every class change, in case the teacher set them after this page opened.
+  $('classNo').addEventListener('change', async () => {
+    groupOptions(cfg);
+    const fresh = await api('/api/config').catch(() => null);
+    if (fresh) { cfg.groupCounts = fresh.groupCounts; groupOptions(cfg); }
+  });
   const me = await api('/api/me').catch(() => ({}));
   if (me.role === 'student') showApp(); else showLogin();
 })();

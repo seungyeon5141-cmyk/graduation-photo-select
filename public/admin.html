@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>셀렉 관리자</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>🧑‍🏫 졸업사진 셀렉 관리자</h1>
+    <div class="who"><span id="who"></span> <button id="logout" class="small hidden">로그아웃</button></div>
+  </header>
+  <main>
+    <div id="auth" class="login hidden">
+      <nav class="tabs" id="authTabs">
+        <button data-auth="teacher" class="on">교사 로그인</button>
+        <button data-auth="signup">교사 등록</button>
+        <button data-auth="admin">최종관리자</button>
+      </nav>
+      <form id="teacherForm" class="card" data-pane="teacher">
+        <h2>교사 로그인</h2>
+        <label for="tName">이름</label>
+        <input id="tName" autocomplete="username" required>
+        <label for="tPw">비밀번호</label>
+        <input id="tPw" type="password" autocomplete="current-password" required>
+        <button class="primary" type="submit">들어가기</button>
+      </form>
+      <form id="signupForm" class="card hidden" data-pane="signup">
+        <h2>교사 등록</h2>
+        <p class="hint">최종관리자에게 받은 교사 가입 코드가 필요해요.</p>
+        <label for="sName">이름</label>
+        <input id="sName" maxlength="20" autocomplete="username" required>
+        <label for="sClass">담당 반</label>
+        <select id="sClass" required></select>
+        <label for="sCode">교사 가입 코드</label>
+        <input id="sCode" type="password" required>
+        <label for="sPw">사용할 비밀번호 (4자 이상)</label>
+        <input id="sPw" type="password" minlength="4" maxlength="40" autocomplete="new-password" required>
+        <button class="primary" type="submit">등록하고 들어가기</button>
+      </form>
+      <form id="adminForm" class="card hidden" data-pane="admin">
+        <h2>최종관리자 로그인</h2>
+        <p class="hint">Vercel 환경 변수 <code>ADMIN_PASSWORD</code>에 설정한 비밀번호예요.</p>
+        <label for="aPw">최종관리자 비밀번호</label>
+        <input id="aPw" type="password" autocomplete="current-password" required>
+        <button class="primary" type="submit">들어가기</button>
+      </form>
+      <div class="error" id="loginError"></div>
+    </div>
+
+    <div id="app" class="hidden">
+      <nav class="tabs" id="tabs">
+        <button data-tab="status" class="on">셀렉 현황</button>
+        <button data-tab="pick">반 단체사진 고르기</button>
+        <button data-tab="teachers" class="admin-only hidden">교사별 선택</button>
+        <button data-tab="log" class="admin-only hidden">전체 기록</button>
+      </nav>
+
+      <div data-panel="status">
+        <div class="toolbar">
+          <span class="progress" id="progress"></span>
+          <span class="spacer"></span>
+          <button id="lock" class="admin-only hidden"></button>
+          <span class="tag warn hidden" id="lockedTag">🔒 마감됨</span>
+          <button id="csv">목록 CSV</button>
+          <button id="zipAll" class="primary">셀렉 사진 전체 ZIP 저장</button>
+        </div>
+        <div id="classes"></div>
+      </div>
+
+      <div data-panel="pick" class="hidden">
+        <div class="notice">
+          <strong>반 단체사진 셀렉</strong>
+          <span class="muted">사진을 누르고 몇 반 단체사진인지 고르세요. 반마다 한 장만 저장되고, 다시 고르면 바뀌어요. 저장 파일명은 'O반_단체'예요.</span>
+          <span class="spacer"></span>
+          <select id="folderFilter"></select>
+          <button id="refresh" class="small">드라이브 새로고침</button>
+        </div>
+        <div id="pickList"></div>
+      </div>
+
+      <div data-panel="teachers" class="hidden">
+        <div id="teacherTable"></div>
+      </div>
+
+      <div data-panel="log" class="hidden">
+        <div id="logTable"></div>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="classDialog">
+    <form method="dialog" class="card dialog-card">
+      <img id="classDialogImg" alt="">
+      <label for="classDialogNo">이 사진은 몇 반 단체사진인가요?</label>
+      <select id="classDialogNo"></select>
+      <div class="bar">
+        <button value="ok" class="primary">이 반 단체사진으로 셀렉</button>
+        <button value="cancel">닫기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

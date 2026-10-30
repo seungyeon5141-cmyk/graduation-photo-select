@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>졸업사진 셀렉</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>📸 졸업앨범 모둠 사진 셀렉</h1>
+    <div class="who"><span id="who"></span> <button id="logout" class="small hidden">로그아웃</button></div>
+  </header>
+  <main>
+    <form id="login" class="card login hidden">
+      <h2>모둠 로그인</h2>
+      <p class="hint">반과 조를 고르고 비밀번호를 입력하세요. 우리 모둠이 <b>처음</b> 들어오는 거라면 지금 입력한 비밀번호가 모둠 비밀번호로 정해져요. 모둠원끼리 같은 비밀번호를 쓰세요.</p>
+      <div class="row">
+        <div><label for="classNo">반</label><select id="classNo" required></select></div>
+        <div><label for="groupNo">조</label><select id="groupNo" required></select></div>
+      </div>
+      <label for="password">비밀번호 (4자 이상)</label>
+      <input id="password" type="password" minlength="4" maxlength="40" autocomplete="current-password" required>
+      <button class="primary" type="submit">들어가기</button>
+      <div class="error" id="loginError"></div>
+    </form>
+
+    <div id="app" class="hidden">
+      <div class="notice">
+        <strong id="status"></strong>
+        <span class="muted" id="statusHint"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </main>
+
+  <dialog id="viewer">
+    <img id="viewerImg" alt="">
+    <div class="bar">
+      <button id="viewerPick" class="primary">이 사진으로 셀렉</button>
+      <button id="viewerClose">닫기</button>
+    </div>
+  </dialog>
+  <script src="/student.js"></script>
+</body>
+</html>
